@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, field
 from copy import deepcopy
 from enum import Enum
 import json
+import sys
 import time
 from typing import Literal
 from uuid import uuid4
@@ -254,8 +255,15 @@ class TurnStages:
 
         prompt = (
             f"You are an intent analyzer. {capability}\n"
-            "Resolve the user's current instruction into a structured task plan.\n"
+            "Resolve the user's current instruction. "
+            "Choose the simplest action that handles it.\n"
             "Return ONLY a JSON object — no prose, no markdown fences.\n\n"
+
+            "## Action: respond\n"
+            "Use for simple conversational messages (greetings, thanks, small talk, "
+            "capability questions) that need no tools and no task planning. "
+            "Reply naturally and directly.\n"
+            '  {"action": "respond", "message": "<your reply>"}\n\n'
 
             "## Action: clarify\n"
             "Use when the instruction is ambiguous or outside the assistant's scope. "
@@ -263,13 +271,14 @@ class TurnStages:
             '  {"action": "clarify", "message": "<your question or out-of-scope notice>"}\n\n'
 
             "## Action: history\n"
-            "Use when the instruction references prior context you lack "
-            "(\"continue\", \"that one\", \"do the first option\") "
-            "and you need specific prior-turn entries to resolve it.\n"
+            "Use only when the instruction references prior context you lack "
+            "('continue', 'that one', 'do the first option') "
+            "and you need specific prior-turn entries to resolve it. "
+            "Do NOT use this for a first message or when no prior turns exist.\n"
             '  {"action": "history", "reason": "<why>", "turn_ids": [<int>, ...]}\n\n'
 
             "## Action: analyze\n"
-            "Use when the instruction is clear and within scope.\n"
+            "Use when the instruction requires tool use or multi-step task planning.\n"
             '  {\n'
             '    "action": "analyze",\n'
             '    "objective": "<the ultimate goal>",\n'
@@ -285,9 +294,9 @@ class TurnStages:
             "- completion_criteria: observable condition that means the task is finished.\n\\n"
 
             "## Rules\n"
-            "1. Order steps by priority: prerequisites → core logic → output formatting.\n"
-            f"2. Registered tools:\n{tool_list}\n   Use null tool for no-tool steps; empty resources when none needed.\n"
-            "3. A conversation-only task has an empty steps list.\n"
+            "1. Prefer respond for anything that is just conversation — do not plan a task for a greeting.\n"
+            "2. Order steps by priority: prerequisites → core logic → output formatting.\n"
+            f"3. Registered tools:\n{tool_list}\n   Use null tool for no-tool steps; empty resources when none needed.\n"
             "4. Do not plan steps that require tools not in the registered list."
         )
 
@@ -298,6 +307,9 @@ class TurnStages:
             {"role": "system", "content": self._system(context, prompt)},
             {"role": "user", "content": payload},
         ], json_output=True)
+
+        if result.get("action") == "respond":
+            return StageResult(TurnState.COMPLETED, message=result.get("message", ""))
 
         if result.get("action") == "clarify":
             return StageResult(TurnState.WAITING_FOR_USER, message=result.get("message", "What do you mean?"))
@@ -310,6 +322,8 @@ class TurnStages:
                 {"role": "user", "content": payload},
             ], json_output=True)
 
+            if result.get("action") == "respond":
+                return StageResult(TurnState.COMPLETED, message=result.get("message", ""))
             if result.get("action") == "clarify":
                 return StageResult(TurnState.WAITING_FOR_USER, message=result.get("message", "What do you mean?"))
 
@@ -566,6 +580,7 @@ def process_turn(
             try:
                 result = handlers[state](context)
             except Exception as error:
+                print(f"  [{state.value}] {type(error).__name__}: {error}", file=sys.stderr)
                 context.feedback = json.dumps({
                     "stage": state.value, "status": "failed", "error_type": type(error).__name__,
                 })

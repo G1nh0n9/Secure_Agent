@@ -30,6 +30,8 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def call_llm(messages: list[dict], tool_schemas: list[dict], json_output: bool) -> dict:
+    if not llm_base_url:
+        raise RuntimeError("LLM_BASE_URL is not set. Run: export LLM_BASE_URL=https://your-endpoint/v1")
     payload = {**llm_extra_body, "model": llm_model, "messages": messages, "stream": False}
     if tool_schemas:
         payload["tools"] = tool_schemas
