@@ -187,6 +187,7 @@ class TurnResult(TaskRecord, ProcessingResult):
 class ToolDefinition:
     description: str
     parameters: dict
+    resource_hint: str
     validate: Callable[[dict], dict]
     resources: Callable[[dict], tuple[str, ...]]
     execute: Callable[[dict], object]
@@ -233,60 +234,182 @@ class TurnStages:
         if context.analysis_calls >= self.max_analysis_calls:
             return StageResult(TurnState.LIMIT_REACHED)
         context.analysis_calls += 1
+
         entries = context.history.entries
-        last_user_entry = next(
-            (
-                {"record_id": index, **asdict(entry)}
-                for index, entry in reversed(list(enumerate(entries)))
-                if entry.kind == "user"
-            ),
-            None
+        current = next(
+            ({"record_id": i, **asdict(e)} for i, e in reversed(list(enumerate(entries))) if e.kind == "user"),
+            None,
         )
-        
-        prompt = "\n".join((
-            "You are an intent analyzer that inspects the user's latest input to extract actionable instructions and determine whether previous conversation history is required.",
-            "[Analysis Rules]",
-            "1. **Context Dependency Check (Highest Priority)**:",
-            "    - If the user's input is a simple acknowledgment, approval, or continuation request referring to a previous turn (e.g., \"yes\", \"ok\", \"approved\", \"go ahead\", \"continue\", \"sounds good\", \"do that\"), respond ONLY with: `NEED_MORE_HISTORY`",
-            "    - If the target of the instruction relies solely on unresolved pronouns or references (e.g., \"that\", \"the previous code\", \"what you just said\") such that the task cannot be determined from thecurrent input alone, respond ONLY with: `NEED_MORE_HISTORY`",
-            "2. **Instruction Extraction & Prioritization**:",
-            "    - If the instructions are self-contained and clear, list all user requirements and constraints as a numbered list in **order of execution priority** (highest priority first).",
-            "    - Prioritization criteria: (1) Prerequisites / data preparation / filtering -> (2) Core logic / main execution -> (3) Output formatting / secondary constraints.",
-            "    - Output ONLY the numbered list without any introductory text, filler, or explanations."
-        ))
+        tool_list = "\n".join(
+            f"  - {name}: {self.tools[name].description}"
+            + (f" | resource: {self.tools[name].resource_hint}" if self.tools[name].resource_hint else " | resource: none")
+            for name in sorted(self.tools)
+        ) or "  (none)"
 
-        response = self._call([
+        capability = (
+            "You plan tasks for a personal daily-life assistant. "
+            "Your capabilities are defined by the registered tools listed in the Rules below. "
+            "If a task requires something not covered by those tools, it is out of scope."
+        )
+
+        prompt = (
+            f"You are an intent analyzer. {capability}\n"
+            "Resolve the user's current instruction into a structured task plan.\n"
+            "Return ONLY a JSON object — no prose, no markdown fences.\n\n"
+
+            "## Action: clarify\n"
+            "Use when the instruction is ambiguous or outside the assistant's scope. "
+            "Respond with a natural question or statement.\n"
+            '  {"action": "clarify", "message": "<your question or out-of-scope notice>"}\n\n'
+
+            "## Action: history\n"
+            "Use when the instruction references prior context you lack "
+            "(\"continue\", \"that one\", \"do the first option\") "
+            "and you need specific prior-turn entries to resolve it.\n"
+            '  {"action": "history", "reason": "<why>", "turn_ids": [<int>, ...]}\n\n'
+
+            "## Action: analyze\n"
+            "Use when the instruction is clear and within scope.\n"
+            '  {\n'
+            '    "action": "analyze",\n'
+            '    "objective": "<the ultimate goal>",\n'
+            '    "steps": [\n'
+            '      {"description": "<what this step does>", "tool": "<tool_name or null>", "resources": ["<id>"]}\n'
+            '    ],\n'
+            '    "completion_criteria": "<how to verify done>"\n'
+            '  }\n\n'
+
+            "### Field notes\n"
+            "- steps.tool: one of the registered tools, or null for no-tool steps.\n"
+            "- steps.resources: resource IDs the step needs (see each tool's resource hint); empty list if none.\n"
+            "- completion_criteria: observable condition that means the task is finished.\n\\n"
+
+            "## Rules\n"
+            "1. Order steps by priority: prerequisites → core logic → output formatting.\n"
+            f"2. Registered tools:\n{tool_list}\n   Use null tool for no-tool steps; empty resources when none needed.\n"
+            "3. A conversation-only task has an empty steps list.\n"
+            "4. Do not plan steps that require tools not in the registered list."
+        )
+
+        payload = json.dumps({"instruction": current}, ensure_ascii=False)
+
+        # Try 1: initial analysis
+        result = self._call([
             {"role": "system", "content": self._system(context, prompt)},
-            {"role": "user", "content": json.dumps({
-                "last_user_entry": last_user_entry,
-                "feedback": context.feedback,
-            }, ensure_ascii=False)},
-        ])
-        instruction_analysis = response.get("content") or ""
-        context.analysis = {
-            "last_user_entry": last_user_entry,
-            "instruction_analysis": instruction_analysis,
-        }
+            {"role": "user", "content": payload},
+        ], json_output=True)
 
-        // TODO
+        if result.get("action") == "clarify":
+            return StageResult(TurnState.WAITING_FOR_USER, message=result.get("message", "What do you mean?"))
 
+        # Try 2: re-analyze with history context if needed
+        if result.get("action") == "history":
+            context.recalled_turns.update(result.get("turn_ids", []))
+            result = self._call([
+                {"role": "system", "content": self._system(context, prompt)},
+                {"role": "user", "content": payload},
+            ], json_output=True)
+
+            if result.get("action") == "clarify":
+                return StageResult(TurnState.WAITING_FOR_USER, message=result.get("message", "What do you mean?"))
+
+        # Create TaskPlan from the analysis result
+        steps = tuple(
+            PlannedStep(
+                step_id=str(i),
+                description=step.get("description", ""),
+                requested_tool=step.get("tool"),
+                requested_resources=tuple(step.get("resources") or []),
+            )
+            for i, step in enumerate(result.get("steps") or [])
+        )
+        plan = TaskPlan(
+            task_id=context.instruction.task_id,
+            objective=result.get("objective", ""),
+            steps=steps,
+        )
+        context.analysis = result
+        context.plan = plan
         return StageResult(TurnState.AUTHORIZE)
 
     def authorize_task(self, context: TurnContext) -> StageResult:
         plan = context.plan
-        grants = []
-        for step in plan.steps:
-            name, resources = step.requested_tool, set(step.requested_resources)
+        if plan is None:
+            return StageResult(TurnState.FAILED, message="No plan to authorize")
+        tool_list = "\n".join(
+            f"  - {name}: {self.tools[name].description}"
+            + (f" | resource: {self.tools[name].resource_hint}" if self.tools[name].resource_hint else " | resource: none")
+            for name in sorted(self.tools)
+        ) or "  (none)"
+
+        # --- Verify: independent LLM call to confirm minimum grants ---
+        verifier_prompt = (
+            "You are a permission verifier. Review the task plan and confirm "
+            "which permissions are the minimum required to achieve the objective.\n"
+            "Return ONLY a JSON object.\n\n"
+            "## Rules\n"
+            "1. Default to approving. Only decline a grant if you can state a strong reason "
+            "it is not essential to the objective.\n"
+            "2. You may reduce resources (e.g., deny 'all files' when only 'reports/' is needed) "
+            "but never add permissions that were not requested.\n"
+            "3. A step with no tool needs no grant.\n"
+            f"4. Registered tools:\n{tool_list}\n\n"
+            "## Output format\n"
+            '  {\n'
+            '    "grants": [{"tool": "<name>", "resources": ["<id>"]}],\n'
+            '    "declines": [{"tool": "<name>", "resources": ["<id>"], "reason": "<strong justification>"}]\n'
+            '  }\n'
+            "- grants: the confirmed minimum permissions (a subset of what was requested).\n"
+            "- declines: anything you reject, each with a strong reason. Empty list if all approved.\n"
+        )
+
+        requested = [
+            {"tool": step.requested_tool, "resources": list(step.requested_resources), "description": step.description}
+            for step in plan.steps
+            if step.requested_tool is not None
+        ]
+        payload = json.dumps({
+            "objective": plan.objective,
+            "requested_grants": requested,
+        }, ensure_ascii=False)
+
+        result = self._call([
+            {"role": "system", "content": self._system(context, verifier_prompt)},
+            {"role": "user", "content": payload},
+        ], json_output=True)
+
+        confirmed = result.get("grants") or []
+        declines = result.get("declines") or []
+
+        # --- Policy check: deterministic gate (LLM cannot exceed policy) ---
+        grants_by_tool: dict[str, set[str]] = {}
+        for grant in confirmed:
+            name = grant.get("tool")
+            resources = set(grant.get("resources") or [])
             agent_scope = self.agent_permissions.get(name)
             user_scope = self.user_permissions.get(name)
-            if name not in self.tools or agent_scope is None or user_scope is None or not resources <= set(agent_scope) & set(user_scope):
-                return StageResult(TurnState.FAILED)
-            grants.append((name, tuple(sorted(resources))))
+            if name not in self.tools:
+                return StageResult(TurnState.FAILED, message=f"Verifier confirmed unknown tool: {name}")
+            if agent_scope is None or user_scope is None:
+                return StageResult(TurnState.FAILED, message=f"No policy scope for tool: {name}")
+            allowed = set(agent_scope) & set(user_scope)
+            if not resources <= allowed:
+                denied = resources - allowed
+                return StageResult(TurnState.FAILED, message=f"Policy denies {name}: {sorted(denied)}")
+            grants_by_tool[name] = grants_by_tool.get(name, set()) | resources
+
+        # If the plan had tool steps but the Verifier confirmed none, fail with reasons
+        if requested and not grants_by_tool:
+            reasons = "; ".join(d.get("reason", "no reason given") for d in declines)
+            return StageResult(TurnState.FAILED, message=f"All grants declined: {reasons}")
+
+        # --- Issue: create ticket from verified + policy-checked grants ---
+        grants = tuple((name, tuple(sorted(res))) for name, res in sorted(grants_by_tool.items()))
         ticket = CapabilityTicket(
             task_id=context.instruction.task_id,
             ticket_id=str(uuid4()),
             session_id=context.instruction.session_id,
-            grants=tuple(grants),
+            grants=grants,
             expires_at=time.monotonic() + self.ticket_ttl,
             max_calls=self.max_tool_calls,
         )
