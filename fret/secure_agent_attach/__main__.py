@@ -3,7 +3,7 @@
 Usage: python -m secure_agent_attach COMMAND
 
 Commands: pin, compile, mc, selftest, traces, all, spec, rlz, probe,
-mutate, calls, doc, style, full.
+mutate, calls, doc, style, full [STAGE ...], full list.
 
 Python 3.10 or newer; the docker image fret-lab provides FRET, Kind2
 and NuSMV.
@@ -18,7 +18,7 @@ import time
 sys.dont_write_bytecode = True
 
 from . import fret_nusmv as fn  # noqa: E402
-from . import pin  # noqa: E402
+from . import pin, pipeline  # noqa: E402
 
 FMT = {True: "holds", False: "FAILS", None: "NO VERDICT"}
 
@@ -457,7 +457,8 @@ def cmd_calls(argv: list[str] | None = None) -> dict:
 
 
 def cmd_doc() -> None:
-    """Write the readable document of the catalog."""
+    """Write the readable documents of the requirements."""
+    from . import reqlist
     from . import spec as sp
 
     s = sp.load()
@@ -468,47 +469,62 @@ def cmd_doc() -> None:
     )
     cov = sp.coverage(s)
     sp.render_doc(s, cov, chk["check"] if chk else None)
-    print("  docs/CORE_SPEC.md and docs/core_spec.csv written")
+    reqlist.write()
+    print(
+        "  docs/CORE_SPEC.md, docs/core_spec.csv and "
+        "docs/REQUIREMENTS.md written"
+    )
 
 
-def cmd_full() -> None:
-    """Run every check.
+def _stage_functions() -> dict:
+    """Return the function that runs each stage of the pipeline."""
+    from . import scenarios
 
-    That is the earlier layer, the tool-call monitor, the catalog,
-    Kind2, the probes, the mutants of the original, the document and
-    the style check."""
-    t0 = time.time()
-    print(
-        "[A] earlier checks: model check, traces, evaluator self-test "
-        "(SR-01..08)"
-    )
-    cmd_all()
-    print("\n[A2] tool-call monitor: FRET, NuSMV, real sessions")
-    cmd_calls([])
-    print(
-        "\n[B] requirement catalog of the whole core: parser, signals, "
-        "coverage of core.py"
-    )
-    cmd_spec()
-    print(
-        "\n[C] realizability (Kind2): every component, then the defects "
-        "written as requirements"
-    )
-    cmd_rlz()
-    print("\n[D] probes: the requirements evaluated on the real code")
-    cmd_probe()
-    print("\n[E] code mutants: a defect in a copy of core.py must be noticed")
-    cmd_mutate()
-    print("\n[F] document")
-    cmd_doc()
-    print("\n[G] original after everything")
-    u = pin.untouched()
-    print(
-        "  ", "unchanged, no bytecode caches" if u["ok"] else f"CHANGED: {u}"
-    )
-    print("\n[H] style of the modules written under the code rules")
-    cmd_style()
-    print(f"\nfull run {round(time.time() - t0)} s")
+    def comp(results: dict) -> list[dict]:
+        return results.get("compile") or fn.load_compiled()
+
+    def smoke(results: dict) -> dict:
+        out = scenarios.cli_smoke()
+        print("  ", json.dumps(out))
+        return out
+
+    def untouched(results: dict) -> dict:
+        out = pin.untouched()
+        print("  ", "unchanged" if out["ok"] else f"CHANGED: {out}")
+        return out
+
+    return {
+        "pin": lambda r: cmd_pin(),
+        "compile": lambda r: cmd_compile(),
+        "model_check": lambda r: cmd_mc(comp(r)),
+        "selftest": lambda r: cmd_selftest(comp(r)),
+        "traces": lambda r: cmd_traces(comp(r)),
+        "cli_smoke": smoke,
+        "calls": lambda r: cmd_calls([]),
+        "catalog": lambda r: cmd_spec(),
+        "realizability": lambda r: cmd_rlz(),
+        "probes": lambda r: cmd_probe(),
+        "mutants": lambda r: cmd_mutate(),
+        "untouched": untouched,
+        "docs": lambda r: cmd_doc(),
+        "style": lambda r: cmd_style(),
+    }
+
+
+def cmd_full(argv: list[str] | None = None) -> None:
+    """Run the stages and keep the result of each in ``runs/<run id>/``.
+
+    ``full`` runs every stage; ``full STAGE ...`` runs the named ones;
+    ``full list`` prints the stages.  The exit status is 0 if every
+    stage that ran passed.
+    """
+    if argv and argv[0] == "list":
+        for stage in pipeline.STAGES:
+            print(f"  {stage.key:14s} {stage.title}")
+        return
+    ok = pipeline.run(_stage_functions(), argv)
+    if not ok:
+        raise SystemExit(1)
 
 
 def cmd_all() -> None:
@@ -581,7 +597,7 @@ def main(argv: list[str]) -> None:
     elif cmd == "all":
         cmd_all()
     elif cmd == "full":
-        cmd_full()
+        cmd_full(argv[1:])
     else:
         raise SystemExit(__doc__)
 
