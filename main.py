@@ -54,6 +54,8 @@ def main() -> None:
     parser.add_argument("message", nargs="?", help="New user message")
     parser.add_argument("--jsonl", help="Path to conversation JSONL to restore; use - for standard input")
     parser.add_argument("--fork", action="store_true", help="Copy existing conversation context and create a new session ID")
+    parser.add_argument("--monitor", metavar="AUDIT_JSONL",
+                        help="Enable the Layer 4 monitor and append its hash-chained audit log to this file")
     args = parser.parse_args()
 
     if args.jsonl is None:
@@ -70,11 +72,17 @@ def main() -> None:
             history = history.fork()
     if args.message is not None:
         instruction = UserInstruction(history.session_id, history.next_turn_id, args.message)
-        stages = TurnStages(
-            call_llm, tools=tools, agent_permissions=agent_permissions, user_permissions=user_permissions,
+        options = dict(
+            tools=tools, agent_permissions=agent_permissions, user_permissions=user_permissions,
             max_analysis_calls=max_analysis_calls, max_worker_calls=max_worker_calls,
             max_tool_calls=max_tool_calls, ticket_ttl=ticket_ttl,
         )
+        if args.monitor:
+            from monitor import Monitor
+            from src.monitored_stages import MonitoredTurnStages
+            stages = MonitoredTurnStages(call_llm, monitor=Monitor(args.monitor), **options)
+        else:
+            stages = TurnStages(call_llm, **options)
         result = process_turn(instruction, history, stages=stages, max_steps=max_steps)
         print(f"[{result.status.value}] {result.message}", file=sys.stderr)
     for line in history.to_jsonl():
