@@ -1,0 +1,8 @@
+{
+  "note": "Files copied unchanged from ~/nl2semiformal/nl2fret_tool (fret_import.js, fret_parse_full.js, stub). They run inside the docker image fret-lab.",
+  "sha256": {
+    "vendor/fretjs/fret_import.js": "a7a05a2497f489e136fa9d0496b9aa736b99e97d876377f745858ad67c036fc6",
+    "vendor/fretjs/fret_parse_full.js": "fe337db0001a4b24b3f89903bf2044388f9d27d056dfacfe3e2d36c21ba3f625",
+    "vendor/fretjs/stub/product-iterable/index.js": "b89a4e1370da993ace8f97c147b9566d44d03b69e5ad531f5f4a3c1880843bbe"
+  }
+}

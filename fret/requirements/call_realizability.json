@@ -1,0 +1,279 @@
+{
+ "about": "Realizability description of the tool-call monitor. Inputs are everything the attacker or the environment decides, outputs are what the monitor decides. The FUN requirements demand that allowed calls really happen, so that a monitor which does nothing is not a solution; the CM requirements are the security lines of requirements/call_requirements.json in a form with inputs. The mutants state the original behaviour and must make the set unrealizable.",
+ "signals": {
+  "plan_sens": [
+   "Input",
+   "boolean",
+   "the plan of the turn asks for a sensitive read",
+   "-"
+  ],
+  "ver_sens": [
+   "Input",
+   "boolean",
+   "the verifier confirmed a sensitive read (it may add tools the plan never asked for)",
+   "-"
+  ],
+  "pol_sens": [
+   "Input",
+   "boolean",
+   "the policy allows a sensitive read",
+   "-"
+  ],
+  "req_sens": [
+   "Input",
+   "boolean",
+   "the model asks the gate for a sensitive read",
+   "-"
+  ],
+  "issued_sens": [
+   "Output",
+   "boolean",
+   "the ticket grants a sensitive read",
+   "-"
+  ],
+  "exec_sens": [
+   "Output",
+   "boolean",
+   "a sensitive read really executes",
+   "-"
+  ],
+  "plan_send": [
+   "Input",
+   "boolean",
+   "the plan of the turn asks for an external send",
+   "-"
+  ],
+  "ver_send": [
+   "Input",
+   "boolean",
+   "the verifier confirmed an external send (it may add tools the plan never asked for)",
+   "-"
+  ],
+  "pol_send": [
+   "Input",
+   "boolean",
+   "the policy allows an external send",
+   "-"
+  ],
+  "req_send": [
+   "Input",
+   "boolean",
+   "the model asks the gate for an external send",
+   "-"
+  ],
+  "issued_send": [
+   "Output",
+   "boolean",
+   "the ticket grants an external send",
+   "-"
+  ],
+  "exec_send": [
+   "Output",
+   "boolean",
+   "an external send really executes",
+   "-"
+  ],
+  "plan_other": [
+   "Input",
+   "boolean",
+   "the plan of the turn asks for another tool",
+   "-"
+  ],
+  "ver_other": [
+   "Input",
+   "boolean",
+   "the verifier confirmed another tool (it may add tools the plan never asked for)",
+   "-"
+  ],
+  "pol_other": [
+   "Input",
+   "boolean",
+   "the policy allows another tool",
+   "-"
+  ],
+  "req_other": [
+   "Input",
+   "boolean",
+   "the model asks the gate for another tool",
+   "-"
+  ],
+  "issued_other": [
+   "Output",
+   "boolean",
+   "the ticket grants another tool",
+   "-"
+  ],
+  "exec_other": [
+   "Output",
+   "boolean",
+   "another tool really executes",
+   "-"
+  ],
+  "ticket_ok": [
+   "Input",
+   "boolean",
+   "the turn has a valid, unexpired ticket",
+   "-"
+  ],
+  "sens_ran_before": [
+   "Input",
+   "boolean",
+   "a sensitive read has executed earlier in the session",
+   "-"
+  ],
+  "llm_requested": [
+   "Input",
+   "boolean",
+   "a stage wants to call the model",
+   "-"
+  ],
+  "llm_at_cap": [
+   "Input",
+   "boolean",
+   "the turn has used up its model-call budget",
+   "-"
+  ],
+  "llm_done": [
+   "Output",
+   "boolean",
+   "the call reaches the model provider",
+   "-"
+  ],
+  "claims_complete": [
+   "Input",
+   "boolean",
+   "the evaluator model claims the work is complete",
+   "-"
+  ],
+  "plan_needs_tool": [
+   "Input",
+   "boolean",
+   "the plan asked for at least one tool",
+   "-"
+  ],
+  "ok_before": [
+   "Input",
+   "boolean",
+   "a tool call of this turn has already succeeded",
+   "-"
+  ],
+  "completed": [
+   "Output",
+   "boolean",
+   "the turn is accepted as completed",
+   "-"
+  ]
+ },
+ "requirements": [
+  {
+   "id": "FUN-issue-sens",
+   "text": "Monitor shall always satisfy ((ver_sens & pol_sens & plan_sens) => issued_sens)"
+  },
+  {
+   "id": "CM-01-sens",
+   "text": "Monitor shall always satisfy (exec_sens => (ticket_ok & issued_sens))"
+  },
+  {
+   "id": "CM-02-sens",
+   "text": "Monitor shall always satisfy (issued_sens => plan_sens)"
+  },
+  {
+   "id": "FUN-issue-send",
+   "text": "Monitor shall always satisfy ((ver_send & pol_send & plan_send) => issued_send)"
+  },
+  {
+   "id": "CM-01-send",
+   "text": "Monitor shall always satisfy (exec_send => (ticket_ok & issued_send))"
+  },
+  {
+   "id": "CM-02-send",
+   "text": "Monitor shall always satisfy (issued_send => plan_send)"
+  },
+  {
+   "id": "FUN-issue-other",
+   "text": "Monitor shall always satisfy ((ver_other & pol_other & plan_other) => issued_other)"
+  },
+  {
+   "id": "CM-01-other",
+   "text": "Monitor shall always satisfy (exec_other => (ticket_ok & issued_other))"
+  },
+  {
+   "id": "CM-02-other",
+   "text": "Monitor shall always satisfy (issued_other => plan_other)"
+  },
+  {
+   "id": "FUN-exec-sens",
+   "text": "Monitor shall always satisfy ((req_sens & ticket_ok & issued_sens) => exec_sens)"
+  },
+  {
+   "id": "FUN-exec-other",
+   "text": "Monitor shall always satisfy ((req_other & ticket_ok & issued_other) => exec_other)"
+  },
+  {
+   "id": "FUN-exec-send",
+   "text": "Monitor shall always satisfy ((req_send & ticket_ok & issued_send & !sens_ran_before) => exec_send)"
+  },
+  {
+   "id": "CM-03",
+   "text": "Monitor shall always satisfy (sens_ran_before => !exec_send)"
+  },
+  {
+   "id": "FUN-llm",
+   "text": "Monitor shall always satisfy ((llm_requested & !llm_at_cap) => llm_done)"
+  },
+  {
+   "id": "CM-04",
+   "text": "Monitor shall always satisfy (llm_at_cap => !llm_done)"
+  },
+  {
+   "id": "FUN-complete",
+   "text": "Monitor shall always satisfy ((claims_complete & (ok_before | !plan_needs_tool)) => completed)"
+  },
+  {
+   "id": "CM-05",
+   "text": "Monitor shall always satisfy ((completed & plan_needs_tool) => ok_before)"
+  }
+ ],
+ "mutants": [
+  {
+   "id": "MUT-CM01",
+   "text": "Monitor shall always satisfy ((req_sens & !ticket_ok) => exec_sens)",
+   "conflicts_with": [
+    "CM-01-sens"
+   ],
+   "ko": "original-style defect: a call runs without a valid ticket"
+  },
+  {
+   "id": "MUT-CM02",
+   "text": "Monitor shall always satisfy ((ver_send & pol_send & !plan_send) => issued_send)",
+   "conflicts_with": [
+    "CM-02-send"
+   ],
+   "ko": "original behaviour: the verifier's extra tool is granted"
+  },
+  {
+   "id": "MUT-CM03",
+   "text": "Monitor shall always satisfy ((req_send & ticket_ok & issued_send & sens_ran_before) => exec_send)",
+   "conflicts_with": [
+    "CM-03"
+   ],
+   "ko": "original behaviour: a send runs after a sensitive read"
+  },
+  {
+   "id": "MUT-CM04",
+   "text": "Monitor shall always satisfy ((llm_requested & llm_at_cap) => llm_done)",
+   "conflicts_with": [
+    "CM-04"
+   ],
+   "ko": "original behaviour: the model is called over the budget"
+  },
+  {
+   "id": "MUT-CM05",
+   "text": "Monitor shall always satisfy ((claims_complete & plan_needs_tool & !ok_before) => completed)",
+   "conflicts_with": [
+    "CM-05"
+   ],
+   "ko": "original behaviour: the claim alone completes the turn"
+  }
+ ]
+}

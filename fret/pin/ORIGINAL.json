@@ -1,0 +1,13 @@
+{
+  "locations": [
+    "..",
+    "../Secure_Agent"
+  ],
+  "origin": "https://github.com/G1nh0n9/Secure_Agent.git",
+  "commit": "67e44bac73b2644d107cf23b08065d58084b00eb",
+  "sha256": {
+    "src/core.py": "de9a49788177bf36eb05b84be8e9bedb8421d1ba9aa989c5767469c70582eab1",
+    "main.py": "322399d51ad131fb7b0c57b5b9cc70e43b5a4d93eee485e5b93ee3c8c20debac",
+    "src/logging.py": "d17b491161e83866415917c0f9fadaae5ba2e07f4b86509e9bf49b9004d5b02e"
+  }
+}

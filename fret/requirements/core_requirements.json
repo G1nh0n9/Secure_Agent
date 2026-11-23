@@ -1,0 +1,78 @@
+{
+  "component": "Core",
+  "scope": "Secure_Agent core (process_turn, TurnStages), pinned in pin/ORIGINAL.json. Frontends are out of scope.",
+  "tick": "One tick = one iteration of the process_turn loop. A tick describes the state before the iteration runs plus what the iteration does. The last tick is the state after the turn is over.",
+  "environment": "Untrusted and unconstrained: the four LLM stages, tool results, the TTL clock, the restored history.",
+  "signals": {
+    "stage_authorize": "this iteration runs authorize_task",
+    "ticket_exists": "a ticket exists in the state before the iteration (after the finally-revoke on the last tick)",
+    "grants_within_plan": "the grants of the existing ticket are within the tools and resources the plan requested (true without a ticket)",
+    "grants_within_policy": "the grants of the existing ticket are within agent_permissions and user_permissions (true without a ticket)",
+    "exec_unauthorized": "a tool really executed in this iteration although the ticket was invalid, the call was outside the grants, or the call budget was exceeded; the observer recomputes this independently of the gate",
+    "blocked_start": "an EXECUTE iteration cannot start because the ticket is missing or expired",
+    "turn_over": "the turn has ended (last tick)",
+    "denial_seen": "an earlier iteration denied a tool call or was blocked",
+    "result_has_reason": "the turn result carries a non-empty message (meaningful at turn_over)",
+    "managed_untrusted": "a managed entry in the context differs from the operator's configured managed prompt",
+    "steps": "iterations run so far",
+    "max_steps": "the loop limit"
+  },
+  "requirements": [
+    {
+      "id": "SR-01",
+      "title": "Gate conformance",
+      "fretish": "Core shall never satisfy exec_unauthorized",
+      "why": "A tool executes only with a valid ticket, inside the grants, within the call budget.",
+      "model": "by_construction"
+    },
+    {
+      "id": "SR-02",
+      "title": "Least privilege",
+      "fretish": "Core shall always satisfy (ticket_exists => grants_within_plan)",
+      "why": "Grants never exceed what the plan requested. The verifier prompt asks for it.",
+      "model": "meaningful"
+    },
+    {
+      "id": "SR-03",
+      "title": "Policy bound",
+      "fretish": "Core shall always satisfy (ticket_exists => grants_within_policy)",
+      "why": "Grants never exceed agent_permissions and user_permissions, whatever the verifier says.",
+      "model": "by_construction"
+    },
+    {
+      "id": "SR-04",
+      "title": "No ticket after the turn",
+      "fretish": "Core shall always satisfy (turn_over => !ticket_exists)",
+      "why": "Every way out of the turn revokes the ticket.",
+      "model": "meaningful"
+    },
+    {
+      "id": "SR-05",
+      "title": "Expired ticket is not a dead end",
+      "fretish": "when blocked_start Core shall at the next timepoint satisfy (stage_authorize | turn_over)",
+      "why": "A deterministic denial must not be retried like a transient error. After a blocked start the next iteration re-authorizes or the turn ends.",
+      "model": "meaningful"
+    },
+    {
+      "id": "SR-06",
+      "title": "A denied turn does not end silently",
+      "fretish": "Core shall always satisfy ((turn_over & denial_seen) => result_has_reason)",
+      "why": "If a call was denied or blocked, the turn result carries a message. Weak form: any non-empty message counts.",
+      "model": "meaningful"
+    },
+    {
+      "id": "SR-07",
+      "title": "Operator prompt provenance",
+      "fretish": "Core shall never satisfy managed_untrusted",
+      "why": "managed entries come only from the operator configuration, never from a restored history.",
+      "model": "by_design"
+    },
+    {
+      "id": "SR-08",
+      "title": "Bounded loop",
+      "fretish": "Core shall always satisfy (steps <= max_steps)",
+      "why": "The turn loop never exceeds its limit.",
+      "model": "by_construction"
+    }
+  ]
+}
