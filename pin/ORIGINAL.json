@@ -1,5 +1,8 @@
 {
-  "path": "/Users/gina/safeAIsystem/Secure_Agent",
+  "locations": [
+    "..",
+    "../Secure_Agent"
+  ],
   "origin": "https://github.com/G1nh0n9/Secure_Agent.git",
   "commit": "67e44bac73b2644d107cf23b08065d58084b00eb",
   "sha256": {

@@ -1,6 +1,6 @@
 # Secure_Agent_FRET
 
-A formal-verification layer for [Secure_Agent](../Secure_Agent). The original is never modified; it is pinned to a commit and verified from the outside. Requirements are written in FRETish, compiled by the official FRET parser to past-time LTL, and checked with NuSMV (model checking) and Kind2 (realizability). The same formulas are evaluated on the behaviour of the real code.
+A formal-verification layer for Secure_Agent. The original is never modified; it is pinned to a commit and verified from the outside. Requirements are written in FRETish, compiled by the official FRET parser to past-time LTL, and checked with NuSMV (model checking) and Kind2 (realizability). The same formulas are evaluated on the behaviour of the real code.
 
 ## Approach
 
@@ -18,7 +18,7 @@ Generated reports: `docs/CORE_SPEC.md` and `docs/core_spec.csv` (built by `doc`;
 
 | Mechanism | Purpose | Module |
 |---|---|---|
-| Read-only import and pin | Imports the original without writing bytecode; records commit and file hashes in `pin/ORIGINAL.json` and checks them on every run | `pin.py`, `loader.py` |
+| Read-only import and pin | Imports the original without writing bytecode; `pin/ORIGINAL.json` holds the pinned commit and file hashes, and every run checks that the pinned files are unchanged and the pinned commit is in the history | `pin.py`, `loader.py` |
 | Observer (subclass) | Subclasses `TurnStages`; records one signal tick per `process_turn` iteration; behaviour unchanged | `observe.py` |
 | Guards (subclass, opt-in) | Reference implementation of the guarded variant: least privilege, re-authorization, restored-history sanitizing, denial messages, call shape/content/order checks, result truncation, completion evidence, per-turn budget | `guard.py`, `policy.py`, `ledger.py` |
 | Name rebinding | Runs the original `main.py` unchanged, rebinding `TurnStages` and related names at run time | `scenarios.cli_smoke` |
@@ -45,8 +45,9 @@ runs/                    run records (git-ignored)
 
 Requires Python 3.10+ and the Docker image `fret-lab:latest` (FRET, Kind2, NuSMV 2.7.1). Containers run on a single CPU, sequentially.
 
+Run from the root of this project. The original is found in the parent directory when this project lies in a subdirectory of the Secure_Agent repository, otherwise in the sibling directory `../Secure_Agent`; `SECURE_AGENT_ORIGINAL` overrides both.
+
 ```
-cd ~/safeAIsystem/Secure_Agent_FRET
 PYTHONDONTWRITEBYTECODE=1 python3 -m secure_agent_attach full
 ```
 

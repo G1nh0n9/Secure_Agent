@@ -28,7 +28,8 @@ def cmd_pin() -> dict:
     p = pin.check()
     print(
         f"original: {p['root']}\n  pinned commit {p['pinned_commit'][:12]}  "
-        f"now {p['now']['commit'][:12]}  clean={not p['now']['dirty']}  ->",
+        f"now {p['now']['commit'][:12]}  "
+        f"pinned files clean={not p['now']['dirty']}  ->",
         "OK" if p["ok"] else "MISMATCH: " + "; ".join(p["problems"]),
     )
     v = pin.vendor_check()

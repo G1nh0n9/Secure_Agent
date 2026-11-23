@@ -19,6 +19,7 @@ from __future__ import annotations
 import ast
 import csv
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -435,13 +436,16 @@ def coverage(spec: dict) -> dict:
 
 
 def _link(code: list[str]) -> str:
+    base = Path(
+        os.path.relpath(pin.original_root() / "src" / "core.py", DOCS)
+    ).as_posix()
     out = []
     for c in code:
         m = re.fullmatch(r"L(\d+)(?:-(\d+))?", c.strip())
         if m:
             a, b = m.group(1), m.group(2)
             out.append(
-                f"[{c}](../../Secure_Agent/src/core.py#L{a}"
+                f"[{c}]({base}#L{a}"
                 + (f"-L{b}" if b else "")
                 + ")"
             )

@@ -1,7 +1,9 @@
 """Pin of the original project.
 
 The attach layer never edits the original; every run records whether
-it is still the pinned version.
+the pinned files are unchanged and the pinned commit is still part of
+the history.  The original is either a sibling directory or the
+repository that contains this project as a subdirectory.
 """
 
 import hashlib
@@ -20,8 +22,23 @@ def load_pin() -> dict:
 
 
 def original_root() -> Path:
-    """Return the directory of the original project."""
-    return Path(os.environ.get("SECURE_AGENT_ORIGINAL") or load_pin()["path"])
+    """Return the directory of the original project.
+
+    ``SECURE_AGENT_ORIGINAL`` wins.  Otherwise the first of the pin's
+    ``locations`` (relative to this project) that holds ``src/core.py``
+    and ``main.py`` is used.
+
+    Raises:
+        FileNotFoundError: If no location holds the original.
+    """
+    env = os.environ.get("SECURE_AGENT_ORIGINAL")
+    if env:
+        return Path(env)
+    for place in load_pin()["locations"]:
+        root = (ROOT / place).resolve()
+        if (root / "src" / "core.py").exists() and (root / "main.py").exists():
+            return root
+    raise FileNotFoundError("the original project was not found")
 
 
 def _git(root: Path, *args: str) -> str:
@@ -30,22 +47,43 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def _is_ancestor(root: Path, commit: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", commit]
+            + ["HEAD"],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def _inside(root: Path) -> str | None:
+    """Return this project's path below ``root``, or None."""
+    try:
+        return ROOT.relative_to(root).as_posix()
+    except ValueError:
+        return None
+
+
 def check() -> dict:
     """Say whether the original is still exactly the pinned version."""
     pin, root = load_pin(), original_root()
     now = {
         "commit": _git(root, "rev-parse", "HEAD"),
-        "dirty": bool(_git(root, "status", "--porcelain")),
+        "dirty": bool(
+            _git(root, "status", "--porcelain", "--", *pin["sha256"])
+        ),
         "sha256": {
             rel: hashlib.sha256((root / rel).read_bytes()).hexdigest()
             for rel in pin["sha256"]
         },
     }
     problems = []
-    if now["commit"] != pin["commit"]:
-        problems.append("commit differs from the pin")
+    if not _is_ancestor(root, pin["commit"]):
+        problems.append("the pinned commit is not in the history")
     if now["dirty"]:
-        problems.append("working tree is not clean")
+        problems.append("a pinned file has uncommitted changes")
     problems += [
         f"{rel} differs from the pin"
         for rel, h in pin["sha256"].items()
@@ -63,15 +101,19 @@ def check() -> dict:
 def untouched() -> dict:
     """Check after a run that the original is unchanged.
 
-    It must have no changes and no bytecode caches left by us.
+    It must have no changes and no bytecode caches left by us.  This
+    project's own directory is left out when it sits inside the
+    original repository.
     """
     root = original_root()
+    own = _inside(root)
     caches = [
         str(p.relative_to(root))
         for p in root.rglob("__pycache__")
-        if ".git" not in p.parts
+        if ".git" not in p.parts and not (own and p.is_relative_to(ROOT))
     ]
-    status = _git(root, "status", "--porcelain")
+    exclude = [f":(exclude){own}"] if own else []
+    status = _git(root, "status", "--porcelain", "--", ".", *exclude)
     return {
         "ok": not status and not caches,
         "git_status": status,
