@@ -241,7 +241,7 @@
    "conflicts_with": [
     "CM-01-sens"
    ],
-   "ko": "original-style defect: a call runs without a valid ticket"
+   "desc": "original-style defect: a call runs without a valid ticket"
   },
   {
    "id": "MUT-CM02",
@@ -249,7 +249,7 @@
    "conflicts_with": [
     "CM-02-send"
    ],
-   "ko": "original behaviour: the verifier's extra tool is granted"
+   "desc": "original behaviour: the verifier's extra tool is granted"
   },
   {
    "id": "MUT-CM03",
@@ -257,7 +257,7 @@
    "conflicts_with": [
     "CM-03"
    ],
-   "ko": "original behaviour: a send runs after a sensitive read"
+   "desc": "original behaviour: a send runs after a sensitive read"
   },
   {
    "id": "MUT-CM04",
@@ -265,7 +265,7 @@
    "conflicts_with": [
     "CM-04"
    ],
-   "ko": "original behaviour: the model is called over the budget"
+   "desc": "original behaviour: the model is called over the budget"
   },
   {
    "id": "MUT-CM05",
@@ -273,7 +273,7 @@
    "conflicts_with": [
     "CM-05"
    ],
-   "ko": "original behaviour: the claim alone completes the turn"
+   "desc": "original behaviour: the claim alone completes the turn"
   }
  ]
 }
