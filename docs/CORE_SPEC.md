@@ -102,7 +102,7 @@ Realizability of the five requirements (Kind2, every input unconstrained): **rea
 
 Tick = one tool call attempt
 
-realizability: **realizable** (1.43 s)
+realizability: **realizable** (1.37 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -204,7 +204,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one ticket store operation, or a static fact about the data structure
 
-realizability: **realizable** (1.35 s)
+realizability: **realizable** (1.27 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -236,7 +236,7 @@ realizability: **realizable** (1.35 s)
 
 Tick = one authorize_task call
 
-realizability: **realizable** (1.29 s)
+realizability: **realizable** (1.27 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -323,7 +323,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one analyze_instruction call
 
-realizability: **realizable** (0.82 s)
+realizability: **realizable** (0.76 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -391,7 +391,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one worker LLM round and the batch of tool calls of that round
 
-realizability: **realizable** (1.25 s)
+realizability: **realizable** (1.36 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -479,7 +479,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one evaluate_result call
 
-realizability: **realizable** (0.79 s)
+realizability: **realizable** (0.89 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -536,7 +536,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one loop iteration, or one exit point (r_exit)
 
-realizability: **realizable** (1.59 s)
+realizability: **realizable** (1.56 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -614,7 +614,7 @@ Macros (`{NAME}` in a requirement is replaced by):
 
 Tick = one history operation
 
-realizability: **realizable** (2.77 s)
+realizability: **realizable** (2.9 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -700,7 +700,7 @@ realizability: **realizable** (2.77 s)
 
 Tick = creation, or the interpretation of one stream line
 
-realizability: **realizable** (0.88 s)
+realizability: **realizable** (0.82 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -736,7 +736,7 @@ realizability: **realizable** (0.88 s)
 
 Tick = one construction
 
-realizability: **realizable** (5.28 s)
+realizability: **realizable** (1.41 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -774,7 +774,7 @@ realizability: **realizable** (5.28 s)
 
 Tick = one operation
 
-realizability: **realizable** (1.46 s)
+realizability: **realizable** (1.57 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|
@@ -834,7 +834,7 @@ realizability: **realizable** (1.46 s)
 
 Tick = static facts (there is no input)
 
-realizability: **realizable** (0.58 s)
+realizability: **realizable** (0.59 s)
 
 | Signal | Role | Type | Meaning | Code |
 |---|---|---|---|---|

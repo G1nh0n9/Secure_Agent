@@ -12,7 +12,7 @@ The LLM is treated as a worst-case, nondeterministic attacker: any plan, any too
 | Turn state machine | `requirements/core_requirements.json`, `model/core_turn.smv.tpl` | Eight requirements (SR-01..08): stage order, ticket lifetime, denial messages. NuSMV model and six end-to-end scenarios (`all`). |
 | Core catalog | `requirements/core_spec.json` | 138 requirements over 12 components covering every statement of `core.py`. Kind2 realizability per component; the same formulas evaluated on real-code observations (`spec`, `rlz`, `probe`, `mutate`). |
 
-Generated reports: `docs/CORE_SPEC.md` and `docs/core_spec.csv` (built by `doc`; do not edit). Assumptions (A-xx), observations (O-xx) and the signal vocabulary are defined there.
+Documents (built by `doc`; do not edit): `docs/REQUIREMENTS.md` lists every requirement given to FRET in readable form; `docs/CORE_SPEC.md` and `docs/core_spec.csv` add the signal vocabulary, assumptions (A-xx), observations (O-xx) and the latest results.
 
 ## Attachment
 
@@ -36,9 +36,11 @@ secure_agent_attach/     callcheck, generator      tool-call monitor and session
                          spec, rlz, probes         core catalog, realizability, probes, code mutants
                          policy, ledger, guard     guards
                          oracles                   independent reference decisions for the guards
+                         pipeline, reqlist         staged run with per-stage results; requirement list
                          ptl, fret_nusmv, observe, scenarios, selftest, style
-docs/                    CORE_SPEC.md, core_spec.csv (generated), REFERENCES.md
-runs/                    run records (git-ignored)
+docs/                    REQUIREMENTS.md, CORE_SPEC.md, core_spec.csv (generated), REFERENCES.md
+scripts/                 run_all.sh (integrated run)
+runs/                    run records, one directory per run (git-ignored)
 ```
 
 ## Usage
@@ -48,12 +50,25 @@ Requires Python 3.10+ and the Docker image `fret-lab:latest` (FRET, Kind2, NuSMV
 Run from the root of this project. The original is found in the parent directory when this project lies in a subdirectory of the Secure_Agent repository, otherwise in the sibling directory `../Secure_Agent`; `SECURE_AGENT_ORIGINAL` overrides both.
 
 ```
-PYTHONDONTWRITEBYTECODE=1 python3 -m secure_agent_attach full
+scripts/run_all.sh              # every stage
+scripts/run_all.sh probes calls # only the named stages
 ```
+
+The script picks a Python 3.10+ interpreter (`PYTHON` overrides), checks the Docker image and runs `python -m secure_agent_attach full`. Each run writes `runs/<run id>/` (`runs/last` points to the latest):
+
+| File | Content |
+|---|---|
+| `summary.md` | Verdict of every stage with the key numbers, then one section per stage |
+| `summary.json` | The same for programs |
+| `NN_stage/stage.log` | Everything the stage printed |
+| `NN_stage/result.json` | The data the stage returned |
+| `NN_stage/artifacts/` | The raw files the stage wrote under `runs/` (NuSMV models, Kind2 projects and outputs, probe and session records), at the same relative paths |
+
+A stage ends PASS (the expected outcome), FAIL (it ran, the outcome is not the expected one) or ERROR (it stopped with an exception). The requirements that the original violates are expected findings and are reported, not counted as FAIL. The exit status is 0 if every stage that ran passed. `full list` prints the stages: `pin`, `compile`, `model_check`, `selftest`, `traces`, `cli_smoke`, `calls`, `catalog`, `realizability`, `probes`, `mutants`, `untouched`, `docs`, `style`.
 
 | Command | Action | Time |
 |---|---|---|
-| `full` | All of the below | ~13 min |
+| `full [STAGE ...]` | The stages above, in this order | ~13 min |
 | `calls [N]` | Tool-call monitor: FRET compile, NuSMV on original and guarded models, Kind2 realizability, evaluation on N generated sessions (default 2000) | ~1 min |
 | `all` | Turn state machine: pin, compile, model check, evaluator self-test, traces, CLI smoke test | 5 s |
 | `spec` | Catalog check: parser, signal declarations, types, security-function classification, `core.py` statement coverage | seconds |
@@ -61,7 +76,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m secure_agent_attach full
 | `probe [component]` | Evaluate requirements on observations of the real code (scripted LLM, fake tools, fake clock); also on the guarded stack when no component is given | seconds |
 | `mutate` | Inject one defect at a time into a copy of `core.py`; the probes must catch each | ~5 min |
 | `style` | PEP 8 / PEP 257 and citation-key check | 1 s |
-| `doc` | Generate `docs/CORE_SPEC.md` and `docs/core_spec.csv` | 1 s |
+| `doc` | Generate `docs/REQUIREMENTS.md`, `docs/CORE_SPEC.md` and `docs/core_spec.csv` | 1 s |
 | `pin`, `compile`, `mc`, `selftest`, `traces` | Parts of the first layer | |
 
 ## Verification chain
