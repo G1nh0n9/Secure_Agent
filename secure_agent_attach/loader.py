@@ -1,4 +1,5 @@
-"""Read-only import of the original project (core module and the CLI module)."""
+"""Read-only import of the original project: ``core`` and ``main``."""
+
 import importlib
 import sys
 
@@ -8,7 +9,10 @@ _cache: dict = {}
 
 
 def load_original():
-    """Return the original `src.core` module. Bytecode is never written into the original."""
+    """Return the original ``src.core`` module.
+
+    Bytecode is never written into the original.
+    """
     if "core" not in _cache:
         sys.dont_write_bytecode = True
         root = str(pin.original_root())
@@ -19,7 +23,11 @@ def load_original():
 
 
 def load_main():
-    """Return the original CLI module `main` (its globals are rebound by the attach layer, the file is not edited)."""
+    """Return the original CLI module ``main``.
+
+    The attach layer rebinds its globals at run time; the file is
+    not edited.
+    """
     load_original()
     if "main" not in _cache:
         _cache["main"] = importlib.import_module("main")

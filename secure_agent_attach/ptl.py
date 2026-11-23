@@ -1,14 +1,22 @@
-"""Past-time LTL in the notation of FRET's `ltl_pt` strings: parser, finite-trace evaluator, NuSMV printer.
+"""Past-time LTL in the notation of FRET's ``ltl_pt`` strings.
 
-Own implementation, no other tool needed. `selftest` checks the evaluator against NuSMV on random traces.
-Semantics (as in NuSMV): Y is strong yesterday (false at the first tick), Z is weak yesterday (true at the first tick),
-`a S b` is strong since (b must have held), `a T b` is its dual.
+A parser, a finite-trace evaluator and a NuSMV printer.  This is an
+own implementation that needs no other tool; ``selftest`` checks the
+evaluator against NuSMV on random traces.
+
+Semantics, as in NuSMV: Y is strong yesterday (false at the first
+tick), Z is weak yesterday (true at the first tick), ``a S b`` is
+strong since (b must have held) and ``a T b`` is its dual.
 """
+
 from __future__ import annotations
 
 import re
 
-TOK = re.compile(r"\s*([HOFG]\[[^\]]*\]|<->|->|<=|>=|!=|[A-Za-z_][A-Za-z0-9_]*|\d+\.\d+|\d+|[()!&|<>=+\-*/,])")
+TOK = re.compile(
+    r"\s*([HOFG]\[[^\]]*\]|<->|->|<=|>=|!=|[A-Za-z_][A-Za-z0-9_]*"
+    r"|\d+\.\d+|\d+|[()!&|<>=+\-*/,])"
+)
 UNARY = {"!", "H", "O", "Y", "Z", "X", "F", "G"}
 CMP = {"<", "<=", ">", ">=", "=", "!="}
 ARI = {"+", "-", "*"}
@@ -17,15 +25,16 @@ WIN = re.compile(r"^([HO])\[(?:(<=|<)\s*(\d+)|(\d+)\s*,\s*(\d+))\]$")
 
 
 class Unsupported(Exception):
-    pass
+    """Raised for a formula the evaluator does not support."""
 
 
 def lex(s: str) -> list[str]:
+    """Split a formula into tokens."""
     out, p, s = [], 0, s.strip()
     while p < len(s):
         m = TOK.match(s, p)
         if not m:
-            raise ValueError("cannot lex: " + s[p:p + 24])
+            raise ValueError("cannot lex: " + s[p : p + 24])
         out.append(m.group(1))
         p = m.end()
     return out
@@ -36,12 +45,16 @@ def _window(op: str) -> tuple[str, int, int]:
     if not m:
         raise Unsupported("window operator " + op)
     if m.group(2):
-        return m.group(1), 0, int(m.group(3)) - (0 if m.group(2) == "<=" else 1)
+        return (
+            m.group(1),
+            0,
+            int(m.group(3)) - (0 if m.group(2) == "<=" else 1),
+        )
     return m.group(1), int(m.group(4)), int(m.group(5))
 
 
 def parse(s: str):
-    """FRET prints fully parenthesised formulas: (op a), (a op b), (a)."""
+    """Parse fully parenthesised formulas: (op a), (a op b), (a)."""
     toks, pos = lex(s), [0]
 
     def peek():
@@ -98,6 +111,7 @@ def parse(s: str):
 
 
 def variables(node, acc=None) -> set[str]:
+    """Return the names of the variables a formula mentions."""
     acc = acc if acc is not None else set()
     if node[0] == "var":
         acc.add(node[1])
@@ -108,7 +122,10 @@ def variables(node, acc=None) -> set[str]:
 
 
 def evaluate(ast, ticks: list[dict]) -> list:
-    """Value of the formula at every tick of a finite trace (ticks = list of {signal: bool|int})."""
+    """Return the value of the formula at every tick of a trace.
+
+    ``ticks`` is a list of ``{signal: bool or int}`` dicts.
+    """
     n = len(ticks)
     memo: dict[int, list] = {}
 
@@ -122,7 +139,9 @@ def evaluate(ast, ticks: list[dict]) -> list:
             try:
                 out = [t[name] for t in ticks]
             except KeyError:
-                raise KeyError(f"signal {name!r} is missing in the trace") from None
+                raise KeyError(
+                    f"signal {name!r} is missing in the trace"
+                ) from None
         elif k in ("const", "num"):
             out = [node[1]] * n
         elif k == "neg":
@@ -131,17 +150,31 @@ def evaluate(ast, ticks: list[dict]) -> list:
             out = [not x for x in ev(node[1])]
         elif k in BOOL2:
             a, b = ev(node[1]), ev(node[2])
-            f = {"&": lambda x, y: x and y, "|": lambda x, y: x or y,
-                 "->": lambda x, y: (not x) or y, "<->": lambda x, y: bool(x) == bool(y)}[k]
+            f = {
+                "&": lambda x, y: x and y,
+                "|": lambda x, y: x or y,
+                "->": lambda x, y: (not x) or y,
+                "<->": lambda x, y: bool(x) == bool(y),
+            }[k]
             out = [bool(f(x, y)) for x, y in zip(a, b)]
         elif k in CMP:
             a, b = ev(node[1]), ev(node[2])
-            f = {"<": lambda x, y: x < y, "<=": lambda x, y: x <= y, ">": lambda x, y: x > y,
-                 ">=": lambda x, y: x >= y, "=": lambda x, y: x == y, "!=": lambda x, y: x != y}[k]
+            f = {
+                "<": lambda x, y: x < y,
+                "<=": lambda x, y: x <= y,
+                ">": lambda x, y: x > y,
+                ">=": lambda x, y: x >= y,
+                "=": lambda x, y: x == y,
+                "!=": lambda x, y: x != y,
+            }[k]
             out = [bool(f(x, y)) for x, y in zip(a, b)]
         elif k in ARI:
             a, b = ev(node[1]), ev(node[2])
-            f = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "*": lambda x, y: x * y}[k]
+            f = {
+                "+": lambda x, y: x + y,
+                "-": lambda x, y: x - y,
+                "*": lambda x, y: x * y,
+            }[k]
             out = [f(x, y) for x, y in zip(a, b)]
         elif k == "Y":
             out = [False] + [bool(x) for x in ev(node[1])[:-1]]
@@ -163,7 +196,7 @@ def evaluate(ast, ticks: list[dict]) -> list:
             for x, y in zip(a, b):
                 prev = bool(y) or (bool(x) and prev)
                 out.append(prev)
-        elif k == "T":   # a T b  ==  !( !a S !b )
+        elif k == "T":  # a T b  ==  !( !a S !b )
             a, b = ev(node[1]), ev(node[2])
             out, prev = [], False
             for x, y in zip(a, b):
@@ -175,7 +208,9 @@ def evaluate(ast, ticks: list[dict]) -> list:
             out = []
             for t in range(n):
                 cells = [v[t - j] for j in range(lo, hi + 1) if t - j >= 0]
-                out.append(any(cells) if kind == "O" else all(cells))   # O: strong at the start, H: weak at the start
+                out.append(
+                    any(cells) if kind == "O" else all(cells)
+                )  # O: strong at the start, H: weak at the start
         else:
             raise Unsupported("operator " + str(k))
         memo[key] = out
@@ -185,7 +220,10 @@ def evaluate(ast, ticks: list[dict]) -> list:
 
 
 def check(formula, ticks: list[dict]) -> dict:
-    """`G formula` on a finite trace: the first tick where the formula is false, if any."""
+    """Check ``G formula`` on a finite trace.
+
+    Returns the first tick where the formula is false, if any.
+    """
     ast = parse(formula) if isinstance(formula, str) else formula
     vals = evaluate(ast, ticks)
     bad = next((i for i, v in enumerate(vals) if not v), None)
@@ -199,7 +237,10 @@ def _rep(op: str, x: str, n: int) -> str:
 
 
 def to_smv(node) -> str:
-    """NuSMV text. Windowed operators are expanded into chains of Y (O) or Z (H)."""
+    """Return the NuSMV text of a formula.
+
+    Windowed operators are expanded into chains of Y (O) or Z (H).
+    """
     k = node[0]
     if k == "var":
         return node[1]
@@ -219,6 +260,14 @@ def to_smv(node) -> str:
         _, kind, lo, hi, sub = node
         inner = to_smv(sub)
         if kind == "O":
-            return "(" + " | ".join(_rep("Y", inner, j) for j in range(lo, hi + 1)) + ")"
-        return "(" + " & ".join(_rep("Z", inner, j) for j in range(lo, hi + 1)) + ")"
+            return (
+                "("
+                + " | ".join(_rep("Y", inner, j) for j in range(lo, hi + 1))
+                + ")"
+            )
+        return (
+            "("
+            + " & ".join(_rep("Z", inner, j) for j in range(lo, hi + 1))
+            + ")"
+        )
     raise Unsupported("smv " + str(k))

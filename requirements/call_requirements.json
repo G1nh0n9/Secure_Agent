@@ -1,0 +1,21 @@
+{
+  "component": "Monitor",
+  "scope": "The tool-call monitor of Secure_Agent: the gate (_execute_tool), the call budget, the model-call budget and the completion rule, over a whole session. The model, the tools and the clock are the attacker.",
+  "tick": "One tick = one event of the session: a new turn, a tool call, a model call, a ticket expiry, a completion claim. A tick describes what the event does.",
+  "environment": "Untrusted and unconstrained: which event comes next, which tools the plan asks for, which extra grants the verifier adds, the policy, the clock. Nothing the model says is trusted.",
+  "signals": {
+    "exec_sens": "a tool of the class 'sensitive read' really executed in this event",
+    "exec_send": "a tool of the class 'external send' really executed in this event",
+    "exec_outside_plan": "a tool executed that the plan of the turn did not request",
+    "exec_unauthorized": "a tool executed without a valid ticket, outside the grants or outside the policy (recomputed independently on real traces, true by construction in the model)",
+    "llm_over_cap": "a model call reached the provider although the turn had already used up its call budget",
+    "completed_no_evidence": "a turn was completed although its plan asked for a tool and no tool call of the turn had succeeded"
+  },
+  "requirements": [
+    {"id": "CM-01", "class": "authorization", "title": "No unauthorized execution", "fretish": "Monitor shall never satisfy exec_unauthorized", "why": "A tool runs only with a valid ticket, inside the grants and inside the policy, whatever the model asks for.", "model": "by_construction"},
+    {"id": "CM-02", "class": "authorization", "title": "Least privilege", "fretish": "Monitor shall never satisfy exec_outside_plan", "why": "A verifier that adds a tool the plan never asked for must not widen what can run (privilege escalation through the verifier).", "model": "meaningful"},
+    {"id": "CM-03", "class": "exfiltration", "title": "No send after a sensitive read", "fretish": "after exec_sens Monitor shall always satisfy !exec_send", "why": "Each tool is allowed on its own, but the chain read-then-send leaks. After a sensitive read in the session no external send executes, however the model orders its calls.", "model": "meaningful"},
+    {"id": "CM-04", "class": "resources", "title": "Model-call budget", "fretish": "Monitor shall never satisfy llm_over_cap", "why": "A turn cannot make the system spend without limit: no model call is made once the budget of the turn is used up.", "model": "meaningful"},
+    {"id": "CM-05", "class": "completion", "title": "No completion without evidence", "fretish": "Monitor shall never satisfy completed_no_evidence", "why": "A turn whose plan needed a tool is not completed unless a tool call succeeded.", "model": "meaningful"}
+  ]
+}

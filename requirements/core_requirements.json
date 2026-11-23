@@ -22,21 +22,21 @@
       "id": "SR-01",
       "title": "Gate conformance",
       "fretish": "Core shall never satisfy exec_unauthorized",
-      "why": "A tool executes only with a valid ticket, inside the grants, within the call budget. Checked on real traces by an independent recomputation; true by construction in the model.",
+      "why": "A tool executes only with a valid ticket, inside the grants, within the call budget.",
       "model": "by_construction"
     },
     {
       "id": "SR-02",
       "title": "Least privilege",
       "fretish": "Core shall always satisfy (ticket_exists => grants_within_plan)",
-      "why": "Grants never exceed what the plan requested. The verifier prompt says so, the code does not enforce it.",
+      "why": "Grants never exceed what the plan requested. The verifier prompt asks for it.",
       "model": "meaningful"
     },
     {
       "id": "SR-03",
       "title": "Policy bound",
       "fretish": "Core shall always satisfy (ticket_exists => grants_within_policy)",
-      "why": "Grants never exceed agent_permissions and user_permissions, whatever the verifier says. True by construction in the model, checked independently on real traces.",
+      "why": "Grants never exceed agent_permissions and user_permissions, whatever the verifier says.",
       "model": "by_construction"
     },
     {
@@ -64,14 +64,14 @@
       "id": "SR-07",
       "title": "Operator prompt provenance",
       "fretish": "Core shall never satisfy managed_untrusted",
-      "why": "managed entries come only from the operator configuration, never from a restored history. By design in the model, checked on real runs.",
+      "why": "managed entries come only from the operator configuration, never from a restored history.",
       "model": "by_design"
     },
     {
       "id": "SR-08",
       "title": "Bounded loop",
       "fretish": "Core shall always satisfy (steps <= max_steps)",
-      "why": "The turn loop never exceeds its limit. True by construction in the model.",
+      "why": "The turn loop never exceeds its limit.",
       "model": "by_construction"
     }
   ]

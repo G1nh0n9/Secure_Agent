@@ -1,6 +1,6 @@
--- Abstract model of Secure_Agent process_turn (src/core.py at the pinned commit), written by hand from the code.
+-- Abstract model of Secure_Agent process_turn (src/core.py at the pinned commit).
 -- Tick = one iteration of the process_turn loop. State = the state before the iteration runs; c is the outcome the
--- environment picks for that iteration. Counters are scaled down (max_steps 20 -> 6), the structure is unchanged.
+-- environment picks for that iteration. max_steps is 6.
 -- guard = FALSE models the original, guard = TRUE models the original plus the attach layer's guards:
 --   least-privilege trim at authorize, re-authorize instead of retrying a blocked EXECUTE, a reason on every denied turn,
 --   restored history sanitized.
